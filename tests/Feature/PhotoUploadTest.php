@@ -22,6 +22,7 @@ class PhotoUploadTest extends TestCase
                 ->component('photo/index')
                 ->where('photo', null)
                 ->has('umapGeoJsonUrl')
+                ->has('locations')
             );
     }
 
@@ -87,9 +88,11 @@ class PhotoUploadTest extends TestCase
             }
         });
 
-        $this->post(route('photo.store'), [
+        $response = $this->post(route('photo.store'), [
             'photo' => UploadedFile::fake()->image('no-gps.jpg', 800, 600),
-        ])->assertInertia(fn (Assert $page) => $page
+        ]);
+
+        $response->assertInertia(fn (Assert $page) => $page
             ->component('photo/index')
             ->where('photo.has_location', false)
         );
@@ -116,5 +119,48 @@ class PhotoUploadTest extends TestCase
             ->assertJsonFragment([
                 'coordinates' => [13.405, 52.52],
             ]);
+    }
+
+    public function test_photo_location_can_be_updated()
+    {
+        $location = PhotoLocation::factory()->create([
+            'original_name' => 'old.jpg',
+            'latitude' => 51.0,
+            'longitude' => 8.0,
+        ]);
+
+        $response = $this->patch(route('photo.update', $location), [
+            'original_name' => 'new.jpg',
+            'captured_at' => '2025:01:01 10:00:00',
+            'camera_make' => 'Leica',
+            'camera_model' => 'Q2',
+            'latitude' => 52.123456,
+            'longitude' => 13.654321,
+        ]);
+
+        $response->assertInertia(fn (Assert $page) => $page
+            ->component('photo/index')
+            ->where('locations.0.original_name', 'new.jpg')
+        );
+
+        $this->assertDatabaseHas('photo_locations', [
+            'id' => $location->id,
+            'original_name' => 'new.jpg',
+            'camera_make' => 'Leica',
+        ]);
+    }
+
+    public function test_photo_location_can_be_deleted()
+    {
+        $location = PhotoLocation::factory()->create();
+
+        $this->delete(route('photo.destroy', $location))
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('photo/index')
+            );
+
+        $this->assertDatabaseMissing('photo_locations', [
+            'id' => $location->id,
+        ]);
     }
 }

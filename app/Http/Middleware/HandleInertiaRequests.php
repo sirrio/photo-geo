@@ -26,6 +26,17 @@ class HandleInertiaRequests extends Middleware
         return parent::version($request);
     }
 
+    public function urlResolver(): \Closure
+    {
+        return function (Request $request): string {
+            if ($request->is('photos*')) {
+                return '/';
+            }
+
+            return $request->getBaseUrl().$request->getRequestUri();
+        };
+    }
+
     /**
      * Define the props that are shared by default.
      *

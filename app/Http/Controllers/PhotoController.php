@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\PhotoLocationUpdateRequest;
 use App\Http\Requests\PhotoUploadRequest;
 use App\Models\PhotoLocation;
 use App\PhotoMetadataExtractor;
@@ -17,10 +18,24 @@ class PhotoController extends Controller
 
     public function index(): Response
     {
+        $photo = session('photo');
+
+        if (! is_array($photo)) {
+            $photo = null;
+        }
+
+        $locations = PhotoLocation::query()
+            ->latest()
+            ->take(20)
+            ->get()
+            ->map(fn (PhotoLocation $location) => $location->toArray())
+            ->values();
+
         return Inertia::render('photo/index', [
             'canRegister' => Features::enabled(Features::registration()),
-            'photo' => null,
+            'photo' => $photo,
             'umapGeoJsonUrl' => route('umap.photos'),
+            'locations' => $locations,
         ]);
     }
 
@@ -66,7 +81,54 @@ class PhotoController extends Controller
             'canRegister' => Features::enabled(Features::registration()),
             'photo' => $photoData,
             'umapGeoJsonUrl' => route('umap.photos'),
+            'locations' => PhotoLocation::query()
+                ->latest()
+                ->take(20)
+                ->get()
+                ->map(fn (PhotoLocation $location) => $location->toArray())
+                ->values(),
         ]);
+    }
+
+    public function update(
+        PhotoLocationUpdateRequest $request,
+        PhotoLocation $photoLocation
+    ): Response {
+        $photoLocation->update($request->validated());
+
+        return Inertia::render('photo/index', [
+            'canRegister' => Features::enabled(Features::registration()),
+            'photo' => null,
+            'umapGeoJsonUrl' => route('umap.photos'),
+            'locations' => PhotoLocation::query()
+                ->latest()
+                ->take(20)
+                ->get()
+                ->map(fn (PhotoLocation $location) => $location->toArray())
+                ->values(),
+        ]);
+    }
+
+    public function destroy(PhotoLocation $photoLocation): Response
+    {
+        $photoLocation->delete();
+
+        return Inertia::render('photo/index', [
+            'canRegister' => Features::enabled(Features::registration()),
+            'photo' => null,
+            'umapGeoJsonUrl' => route('umap.photos'),
+            'locations' => PhotoLocation::query()
+                ->latest()
+                ->take(20)
+                ->get()
+                ->map(fn (PhotoLocation $location) => $location->toArray())
+                ->values(),
+        ]);
+    }
+
+    public function show(PhotoLocation $photoLocation): Response
+    {
+        return $this->index();
     }
 
     public function geojson(): JsonResponse

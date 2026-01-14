@@ -2,7 +2,7 @@ import { Head, Link, useForm, usePage } from '@inertiajs/react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { dashboard, login, register } from '@/routes';
-import { store } from '@/routes/photo';
+import { destroy, store, update } from '@/routes/photo';
 import { type SharedData } from '@/types';
 
 type PhotoData = {
@@ -18,14 +18,29 @@ type PhotoData = {
     has_location: boolean;
 };
 
+type PhotoLocation = {
+    id: number;
+    original_name: string;
+    mime_type: string;
+    size: number;
+    url: string;
+    captured_at: string | null;
+    camera_make: string | null;
+    camera_model: string | null;
+    latitude: number;
+    longitude: number;
+    updated_at: string;
+};
+
 type PageProps = SharedData & {
     photo: PhotoData | null;
     canRegister?: boolean;
     umapGeoJsonUrl: string;
+    locations: PhotoLocation[];
 };
 
 export default function PhotoIndex() {
-    const { auth, name, photo, canRegister = true, umapGeoJsonUrl } =
+    const { auth, name, photo, canRegister = true, umapGeoJsonUrl, locations } =
         usePage<PageProps>().props;
     const [previewUrl, setPreviewUrl] = useState<string | null>(null);
     const [copied, setCopied] = useState(false);
@@ -350,6 +365,42 @@ export default function PhotoIndex() {
                         )}
                     </section>
                 </main>
+
+                <section className="rounded-3xl bg-white/80 p-6 shadow-[0_32px_80px_rgba(20,20,15,0.12)] backdrop-blur">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                            <p className="text-xs uppercase tracking-[0.3em] text-[#9a8560]">
+                                Manage
+                            </p>
+                            <h2 className="mt-2 text-2xl font-semibold text-[#191a14]">
+                                Edit saved photo locations
+                            </h2>
+                            <p className="mt-2 text-sm text-[#58594d]">
+                                Changes here update the GeoJSON feed used by
+                                uMap.
+                            </p>
+                        </div>
+                        <span className="text-xs uppercase tracking-[0.3em] text-[#5b5f4e]">
+                            Showing {locations.length} latest
+                        </span>
+                    </div>
+
+                    <div className="mt-6 grid gap-4">
+                        {locations.length === 0 ? (
+                            <div className="rounded-2xl border border-dashed border-[#d6d3c8] p-6 text-sm text-[#6b6a60]">
+                                No saved locations yet. Upload a photo with GPS
+                                metadata to populate this list.
+                            </div>
+                        ) : (
+                            locations.map((location) => (
+                                <PhotoLocationRow
+                                    key={`${location.id}-${location.updated_at}`}
+                                    location={location}
+                                />
+                            ))
+                        )}
+                    </div>
+                </section>
             </div>
         </div>
     );
@@ -369,4 +420,177 @@ function formatBytes(size: number): string {
     const value = size / Math.pow(base, unitIndex);
 
     return `${value.toFixed(value < 10 ? 1 : 0)} ${units[unitIndex]}`;
+}
+
+function PhotoLocationRow({ location }: { location: PhotoLocation }) {
+    const form = useForm({
+        original_name: location.original_name,
+        captured_at: location.captured_at ?? '',
+        camera_make: location.camera_make ?? '',
+        camera_model: location.camera_model ?? '',
+        latitude: location.latitude,
+        longitude: location.longitude,
+    });
+
+    useEffect(() => {
+        form.setData({
+            original_name: location.original_name,
+            captured_at: location.captured_at ?? '',
+            camera_make: location.camera_make ?? '',
+            camera_model: location.camera_model ?? '',
+            latitude: location.latitude,
+            longitude: location.longitude,
+        });
+    }, [location]);
+
+    return (
+        <div className="grid gap-4 rounded-2xl border border-[#e3d8c7] bg-white p-4 md:grid-cols-[160px_1fr]">
+            <div className="overflow-hidden rounded-xl border border-[#e3d8c7] bg-[#f7f3ea]">
+                <img
+                    src={location.url}
+                    alt={location.original_name}
+                    className="h-full w-full object-cover"
+                />
+            </div>
+            <form
+                onSubmit={(event) => {
+                    event.preventDefault();
+                    form.patch(update({ photoLocation: location.id }).url, {
+                        preserveState: false,
+                        preserveScroll: true,
+                    });
+                }}
+                className="grid gap-4"
+            >
+                <div className="grid gap-3 md:grid-cols-2">
+                    <div>
+                        <label className="text-xs uppercase tracking-[0.3em] text-[#9a8560]">
+                            Name
+                        </label>
+                        <input
+                            value={form.data.original_name}
+                            onChange={(event) =>
+                                form.setData(
+                                    'original_name',
+                                    event.target.value
+                                )
+                            }
+                            className="mt-2 w-full rounded-lg border border-[#d6d3c8] px-3 py-2 text-sm"
+                        />
+                    </div>
+                    <div>
+                        <label className="text-xs uppercase tracking-[0.3em] text-[#9a8560]">
+                            Captured
+                        </label>
+                        <input
+                            value={form.data.captured_at}
+                            onChange={(event) =>
+                                form.setData(
+                                    'captured_at',
+                                    event.target.value
+                                )
+                            }
+                            className="mt-2 w-full rounded-lg border border-[#d6d3c8] px-3 py-2 text-sm"
+                        />
+                    </div>
+                </div>
+                <div className="grid gap-3 md:grid-cols-2">
+                    <div>
+                        <label className="text-xs uppercase tracking-[0.3em] text-[#9a8560]">
+                            Camera make
+                        </label>
+                        <input
+                            value={form.data.camera_make}
+                            onChange={(event) =>
+                                form.setData(
+                                    'camera_make',
+                                    event.target.value
+                                )
+                            }
+                            className="mt-2 w-full rounded-lg border border-[#d6d3c8] px-3 py-2 text-sm"
+                        />
+                    </div>
+                    <div>
+                        <label className="text-xs uppercase tracking-[0.3em] text-[#9a8560]">
+                            Camera model
+                        </label>
+                        <input
+                            value={form.data.camera_model}
+                            onChange={(event) =>
+                                form.setData(
+                                    'camera_model',
+                                    event.target.value
+                                )
+                            }
+                            className="mt-2 w-full rounded-lg border border-[#d6d3c8] px-3 py-2 text-sm"
+                        />
+                    </div>
+                </div>
+                <div className="grid gap-3 md:grid-cols-2">
+                    <div>
+                        <label className="text-xs uppercase tracking-[0.3em] text-[#9a8560]">
+                            Latitude
+                        </label>
+                        <input
+                            type="number"
+                            step="0.000001"
+                            value={form.data.latitude}
+                            onChange={(event) =>
+                                form.setData(
+                                    'latitude',
+                                    Number(event.target.value)
+                                )
+                            }
+                            className="mt-2 w-full rounded-lg border border-[#d6d3c8] px-3 py-2 text-sm"
+                        />
+                    </div>
+                    <div>
+                        <label className="text-xs uppercase tracking-[0.3em] text-[#9a8560]">
+                            Longitude
+                        </label>
+                        <input
+                            type="number"
+                            step="0.000001"
+                            value={form.data.longitude}
+                            onChange={(event) =>
+                                form.setData(
+                                    'longitude',
+                                    Number(event.target.value)
+                                )
+                            }
+                            className="mt-2 w-full rounded-lg border border-[#d6d3c8] px-3 py-2 text-sm"
+                        />
+                    </div>
+                </div>
+
+                {Object.values(form.errors).length > 0 && (
+                    <div className="text-sm text-[#b83f2b]">
+                        {Object.values(form.errors)[0]}
+                    </div>
+                )}
+
+                <div className="flex flex-wrap items-center gap-3">
+                    <button
+                        type="submit"
+                        disabled={form.processing}
+                        className="rounded-full bg-[#1d2f2a] px-5 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-white transition hover:bg-[#2b4b41] disabled:cursor-not-allowed disabled:bg-[#7b8a86]"
+                    >
+                        {form.processing ? 'Saving...' : 'Save changes'}
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() =>
+                            form.delete(destroy({ photoLocation: location.id }).url, {
+                                preserveState: false,
+                                preserveScroll: true,
+                            })
+                        }
+                        className="rounded-full border border-[#b83f2b]/40 px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-[#b83f2b] transition hover:bg-[#b83f2b] hover:text-white"
+                    >
+                        Delete
+                    </button>
+                </div>
+            </form>
+        </div>
+    );
 }
